@@ -1,0 +1,29 @@
+{
+"elastic" : {
+ "host" : "127.0.0.1:9200",
+ "index" : "nxapi",
+ "doctype" : "events",
+ "default_ttl" : "7200",
+ "max_size" : "100"
+},
+"global_filters" : {
+ "whitelisted" : "false"
+},
+"global_warning_rules" : {
+ "rule_ip_count" : ["<=", 10 ],
+ "ip_ratio_global" : ["<", 5]
+},
+"global_success_rules" : {
+ "ip_ratio_template" : [">=", 80],
+ "ip_ratio_global" : [">=", 10],
+ "hit_ratio_template" : [">=", 10],
+ "ip_rule_count" : [">=", 5]
+},
+"naxsi" : {
+ "rules_path" : "/etc/nginx/naxsi_core.rules",
+ "template_path" : "tpl/"
+},
+"output" : {
+ "colors" : "true"
+}
+}
