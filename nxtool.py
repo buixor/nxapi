@@ -85,9 +85,9 @@ opt.add_option_group(p)
 (options, args) = opt.parse_args()
 
 
-
-cfg = NxConfig(options.cfg_path)
-if cfg is None:
+try:
+    cfg = NxConfig(options.cfg_path)
+except ValueError:
     sys.exit(-1)
 
 if options.server is not None:

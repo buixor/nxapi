@@ -16,8 +16,8 @@ class NxConfig():
             self.cfg = (json.loads(open(fname).read()))
         except:
             logging.critical("Unable to open/parse configuration file.")
-        return
-
+            raise ValueError
+    
 class NxTranslate():
     """ Transform Whitelists, template into
     ElasticSearch queries, and vice-versa, conventions :
@@ -46,12 +46,13 @@ class NxTranslate():
         # Attempt to parse provided core rules file
         self.load_cr_file(self.cfg["naxsi"]["rules_path"])
 
-    def full_auto(self, strict=True):
+    def full_auto(self):
         """ Loads all tpl within template_path
         If templates has hit, peers or url(s) ratio > 15%,
         attempts to generate whitelists.
         Only displays the wl that did not raise warnings, ranked by success"""
         # gather total IPs, total URIs, total hit count
+        strict = True
         if self.cfg.get("naxsi").get("strict", "") == "false":
             strict = False
         total_peers = len(self.fetch_uniques(self.cfg["global_filters"], "ip"))
