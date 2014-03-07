@@ -46,13 +46,12 @@ class NxTranslate():
         # Attempt to parse provided core rules file
         self.load_cr_file(self.cfg["naxsi"]["rules_path"])
 
-    def full_auto(self):
+    def full_auto(self, strict=True):
         """ Loads all tpl within template_path
         If templates has hit, peers or url(s) ratio > 15%,
         attempts to generate whitelists.
         Only displays the wl that did not raise warnings, ranked by success"""
         # gather total IPs, total URIs, total hit count
-        strict = True
         if self.cfg.get("naxsi").get("strict", "") == "false":
             strict = False
         total_peers = len(self.fetch_uniques(self.cfg["global_filters"], "ip"))
@@ -78,8 +77,21 @@ class NxTranslate():
                     # full auto baby !
                     if hratio > 15 or pratio > 15 or uratio > 15:
                         print self.grn.format("#  template matched, generating all rules.")
-                        self.gen_wl(template, limit=5, strict=strict)
-                        
+                        whitelists = self.gen_wl(template, rule={})
+                        print str(len(whitelists))+" whitelists ..."
+                        for genrule in whitelists:
+                            stats = self.gather_stats(genrule['rule'], template)
+                            stats['total_hits'] = total_hits
+                            stats['rule_hits'] = float(genrule['total_hits'])
+                            stats['hit_ratio_template'] = (stats['rule_hits'] / stats['total_hits'] ) * 100
+                            ratings = self.check_success(template, stats)
+                            if strict is True and ratings['warning'] > 0:
+                                #print "DISCARD:WARNING"
+                                continue
+                            if strict is True and ratings['success'] <= 0:
+                                #print "DISCARD:NO_SUCCESS"
+                                continue
+                            self.display_rule(ratings, stats, genrule['rule'], template, genrule['content'])
 
     def load_tpl_file(self, tpl):
         """ open, json.loads a tpl file,
@@ -317,7 +329,7 @@ class NxTranslate():
         return wl
     #def check_criterias(self, template, , stats, results):
     #pass
-    def check_success(self, rule, tmprule, stats, results):
+    def check_success(self, rule, stats):
         """ check met/failed success/warning criterias
         of a given template vs a set of results """
         score = 0
@@ -437,11 +449,11 @@ class NxTranslate():
         print "# "+str(round(stats['uri_ratio_template'], 2))+"% of (orig rule) URLs triggered this WL ("+str(stats['rule_uri_count'])+"/"+str(stats['template_uri_count'])+")"
         print "# rule: "+self.blu.format(self.core_msg.get(tmprule.get('id', 0), "Unknown"))
         for x in contents:
-            print "# content: "+x
+            print "# content: "+x.encode('utf-8')
         if ratings['success'] > 0:
-            print self.grn.format(self.tpl2wl(tmprule))
+            print self.grn.format(self.tpl2wl(tmprule)).encode('utf-8')
         else:
-            print "# "+self.red.format(self.tpl2wl(tmprule))
+            print "# "+self.red.format(self.tpl2wl(tmprule)).encode('utf-8')
 
 
     def tag_events(self, esq, msg, tag=False):
@@ -466,87 +478,61 @@ class NxTranslate():
             count += 1
         print ""
         return count
-    def gen_wl(self, rule, limit=0, strict=False):
-        """ Generates whitelists from a given template 
-        if strict flag is enabled, only wl that didn't triggered 
-        warnings will be generated. """
-        qr = self.tpl2esq(rule)
-        #res = self.es.search(index=self.cfg["elastic"]["index"], doc_type=self.cfg["elastic"]["doctype"], body=qr)
-        res = self.search(qr)
-        total = res['hits']['total']
-        tmprule = copy.copy(rule)
-        rule_set = []
-        ## Evaluate the number of unique IDs, uri, names, zones matching the rule
-        crule = {}
-        for wlitem in ['id', 'uri', 'var_name', 'zone']:
-            if rule.get(wlitem, '') == '?':
-                uitems = self.fetch_uniques(rule, wlitem)
-                crule[wlitem] = uitems
-            elif rule.get(wlitem, '') != '':
-                crule[wlitem] = [ rule[wlitem] ]
-                #?key : use pattern for search, use search results for WL gen
-            elif rule.get('?'+wlitem, '') != '':
-                uitems = self.fetch_uniques(rule, wlitem)
-                crule[wlitem] = uitems
-            else:
-                # keyword is to be ignored (ie. cookies)
-                crule[wlitem] = ['']
-        # iterate on items picked from DB
-        for uid in crule['id']:
-            for uuri in crule['uri']:
-                for uvname in crule['var_name']:
-                    if uid != '':
-                        tmprule['id'] = uid
-                    if uuri != '':
-                        tmprule['uri'] = uuri
-                    if uvname != '':
-                        tmprule['var_name'] = uvname
-                    esq = self.tpl2esq(tmprule)
-                    res = self.search(esq)
-                    if res['hits']['total'] > 0:
-                        import sys
-                        sys.stdout.flush()
-                            #print ""
-                        clist = []
-                        
-                        for x in res['hits']['hits']:
-                            if len(x.get("_source").get("content", "")) > 0:
-                                clist.append(x["_source"]["content"])
-                                if len(clist) >= 5:
-                                    break
-                        stats = self.gather_stats(tmprule, rule)
-                        stats['total_hits'] = total
-                        stats['rule_hits'] = float(res['hits']['total'])
-                        stats['hit_ratio_template'] = (stats['rule_hits'] / stats['total_hits'] ) * 100
-                        ratings = self.check_success(rule, tmprule, stats, res)
-                        if strict is True and ratings['warning'] > 0:
-                            print "*",
-                            continue
-                        if strict is True and ratings['success'] <= 0:
-                            print "-",
-                            continue
-                        #print "*",
-                        #print "XX"
-                        #self.display_rule(ratings, stats, tmprule, None, clist)                        
-                        if self.debug is True:
-                            print "+",
-                        rule_set.append({'rule' : copy.copy(tmprule), 'ratings' : copy.copy(ratings), 'stats' : copy.copy(stats),
-                                         'contents' : clist})
-#                    else:
-#                        print ".",
-        print ""
-                    
-        c = 0
-        for x in reversed(sorted(rule_set, key=lambda k: k['ratings']['success'])):
-            if limit != 0:
-                c += 1
-            if strict is True and x['ratings']['warning'] <= 0:
-                self.display_rule(x['ratings'], x['stats'], x['rule'], None, x['contents'])
-            elif strict is False:
-                self.display_rule(x['ratings'], x['stats'], x['rule'], None, x['contents'])
-            if limit != 0 and c >= limit:
-                break
 
+
+    def gen_wl(self, tpl, rule={}):
+        #print "=>",
+        #pprint.pprint(rule)
+        retlist = []
+        # first, set static values
+        for tpl_key in tpl.keys():
+            if tpl_key in rule.keys():
+                continue
+            if tpl_key[0] in ['_', '?']:
+                continue
+            if tpl[tpl_key] == '?':
+                continue
+            #print "setting static : x["+tpl_key+"] = '"+tpl[tpl_key]+"'"
+            rule[tpl_key] = tpl[tpl_key]
+        for tpl_key in tpl.keys():
+            if tpl_key.startswith('_'):
+                continue
+            elif tpl_key.startswith('?'):
+                if tpl_key[1:] in rule.keys():
+                    continue
+                unique_vals = self.fetch_uniques(rule, tpl_key[1:])
+                for uval in unique_vals:
+                    rule[tpl_key] = uval
+                    retlist += self.gen_wl(tpl, copy.copy(rule))
+                return retlist
+            elif tpl[tpl_key] == '?':
+                if tpl_key in rule.keys():
+                    continue
+                unique_vals = self.fetch_uniques(rule, tpl_key)
+                for uval in unique_vals:
+                    rule[tpl_key] = uval
+                    retlist += self.gen_wl(tpl, copy.copy(rule))
+                return retlist
+            elif tpl_key not in rule.keys():
+                rule[tpl_key] = tpl[tpl_key]
+                retlist += self.gen_wl(tpl, copy.copy(rule))
+                return retlist
+    
+        esq = self.tpl2esq(rule)
+        res = self.search(esq)
+        
+        if res['hits']['total'] > 0:
+            clist = []
+        # extract 'content' for user display
+            for x in res['hits']['hits']:
+                if len(x.get("_source").get("content", "")) > 0:
+                    clist.append(x["_source"]["content"])
+                    if len(clist) >= 5:
+                        break
+                    
+            retlist.append({'rule' : rule, 'content' : clist, 'total_hits' : res['hits']['total']})
+            return retlist
+        return []
     def gather_stats(self, crule, orule):
         ''' Gather statistics crule (current rule) covered exceptions vs orule (original rule) for :
         CRULE VS ORULE :
