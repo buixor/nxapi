@@ -409,6 +409,8 @@ class NxTranslate():
         #pprint.pprint(res)
         for x in res['facets']['facet_results']['terms']:
             uniques.append(x['term'])
+        #print "UNIQUES LEN:"+str(len(uniques)),
+        #pprint.pprint(uniques)
         return { 'list' : uniques, 'total' :  len(uniques) }
     def index(self, body, eid):
         return self.es.index(index=self.cfg["elastic"]["index"], doc_type=self.cfg["elastic"]["doctype"], body=body, id=eid)
@@ -558,33 +560,21 @@ class NxTranslate():
          - count(id) matched crule
          - count(uri) matched crule'''
         stats = {}
-        facet = { "facet_results" : {"terms": { "field": '', "size" : 0} }}
-        #facet = {"terms": { "field": ''}}
-        # gather crule vs orule stats
+        facet = { "facet_results" : {"terms": { "field": '', "size" : 50000} }}
         for x in ['ip', 'uri']:
-            #facet['terms']['field'] = x
             facet["facet_results"]['terms']['field'] = x
-            # crule stats
-            #print "gathering matching  rule "+x+" matches :",
             esq = self.tpl2esq(crule)
             esq['facets'] = facet
-            #pprint.pprint(esq)
             res = self.search(esq)
-            #print "RES:",
-            #pprint.pprint(res)
-            stats['rule_'+x+'_count'] = res['facets']['facet_results']['total']
-            # orule stats
+            stats['rule_'+x+'_count'] = len(res['facets']['facet_results']['terms'])
             esq = self.tpl2esq(orule)
             esq['facets'] = facet
             res = self.search(esq)
-            stats['template_'+x+'_count'] = res['facets']['facet_results']['total']
-            # global filters stats
-            #print "GLOBAL"
-            #pprint.pprint(self.cfg["global_filters"])
+            stats['template_'+x+'_count'] = len(res['facets']['facet_results']['terms'])
             esq = self.tpl2esq(self.cfg["global_filters"])
             esq['facets'] = facet
             res = self.search(esq)
-            stats['global_'+x+'_count'] = res['facets']['facet_results']['total']
+            stats['global_'+x+'_count'] = len(res['facets']['facet_results']['terms'])
         stats['ip_ratio_template'] = (float(stats['rule_ip_count']) / stats['template_ip_count']) * 100.0
         stats['uri_ratio_template'] = (float(stats['rule_uri_count']) / stats['template_uri_count']) * 100.0
         stats['ip_ratio_global'] = (float(stats['rule_ip_count']) / stats['global_ip_count']) * 100.0
