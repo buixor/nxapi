@@ -16,6 +16,8 @@ import datetime
 import json
 import copy
 from elasticsearch.helpers import bulk
+import os
+
         
 class NxReader():
     """ Feeds the given injector from logfiles """
@@ -377,7 +379,8 @@ class ESInject(NxInjector):
                                      "uri" : {"type": "string", "index" : "not_analyzed"},
                                      "zone" : {"type": "string", "index" : "not_analyzed"},
                                      "server" : {"type": "string", "index" : "not_analyzed"},
-                                     "whitelisted" : {"type" : "string", "index" : "not_analyzed"}
+                                     "whitelisted" : {"type" : "string", "index" : "not_analyzed"},
+                                     "ip" : { "type" : "ip", "index" : "not_analyzed"}
                                      }
                     }
                 })
@@ -420,7 +423,8 @@ class ESInject(NxInjector):
                 entry['comments'] = "import:"+str(datetime.datetime.now())
                 # go utf-8 ?
                 for x in entry.keys():
-                    entry[x] = unicode(entry[x], errors='replace')
+                    if isinstance(entry[x], basestring):
+                        entry[x] = unicode(entry[x], errors='replace')
                 items.append(entry)
                 count += 1
         mapfunc = partial(json.dumps, ensure_ascii=False)
@@ -444,7 +448,8 @@ class ESInject(NxInjector):
         
 
 class NxGeoLoc():
-    def __init__(self):
+    def __init__(self, cfg):
+        self.cfg = cfg
         try:
             import GeoIP
             self.gi = GeoIP.new(GeoIP.GEOIP_MEMORY_CACHE)
@@ -452,11 +457,15 @@ class NxGeoLoc():
             logging.warning("""Python's GeoIP module is not present.
             'World Map' reports won't work,
             and you can't use per-country filters.""")
+        if not os.path.isfile(self.cfg["naxsi"]["geoipdb_path"]):
+            logging.error("Unable to load GeoIPdb.")
+            raise ValueError
     def cc2ll(self, country):
+        """ translates countrycode to lagitude, longitude """
+        # pun intended
         coord = [37.090240,-95.7128910]
-        #coord = "37.090240,-95.7128910"
         try:
-            fd = open("country2coords.txt", "r")
+            fd = open(self.cfg["naxsi"]["geoipdb_path"], "r")
         except:
             return "Unable to open GeoLoc database, please check your setup."
         fd.seek(0)
@@ -466,11 +475,10 @@ class NxGeoLoc():
                 ar = x.split(',')
                 coord[0] = float(ar[1])
                 coord[1] = float(ar[0])
-                #pprint.pprint(coord)
-#                coord =  cn[len(country)+1:-1]
                 break
         return coord
     def ip2cc(self, ip):
+        """ translates an IP to a country code """
         country = self.gi.country_code_by_addr(ip)
         # pun intended
         if country is None or len(country) < 2:

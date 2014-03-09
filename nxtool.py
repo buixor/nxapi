@@ -179,11 +179,13 @@ if options.stats is True:
 
 # input options, only setup injector if one input option is present
 if options.files_in is not None or options.fifo_in is not None or options.stdin is not None:
-    #injector = ESInject(cfg.cfg["elastic"]["host"], index=cfg.cfg["elastic"]["index"], collection=cfg.cfg["elastic"]["doctype"])
     injector = ESInject(es, cfg.cfg)
     parser = NxParser()
     parser.out_date_format = "%Y-%m-%dT%H:%M:%SZ" #ES-friendly
-    geoloc = NxGeoLoc()
+    try:
+        geoloc = NxGeoLoc(cfg.cfg)
+    except:
+        sys.exit(-1)
 
 if options.files_in is not None:
     reader = NxReader(macquire, lglob=[options.files_in])

@@ -55,11 +55,15 @@ class NxTranslate():
         strict = True
         if self.cfg.get("naxsi").get("strict", "") == "false":
             strict = False
-        total_peers = len(self.fetch_uniques(self.cfg["global_filters"], "ip"))
-        total_uri = len(self.fetch_uniques(self.cfg["global_filters"], "uri"))
+        total_peers = self.fetch_uniques(self.cfg["global_filters"], "ip")['total']
+        total_uri = self.fetch_uniques(self.cfg["global_filters"], "uri")['total']
         x =  self.search( self.tpl2esq(self.cfg["global_filters"]) )
         total_hits = self.search( self.tpl2esq(self.cfg["global_filters"]) )['hits']['total']
-
+        
+        if total_hits <= 0 or total_peers <= 0 or total_uri <= 0:
+            print "No hits for this filter."
+            return
+        
         for root, dirs, files in os.walk(self.cfg["naxsi"]["template_path"]):
             for file in files:
                 if file.endswith(".tpl"):
@@ -69,20 +73,25 @@ class NxTranslate():
                     x = self.search(esq)
                     hratio =  round( (float(x['hits']['total']) / total_hits) * 100.0, 2)
                     print "# "+self.grn.format(str(x['hits']['total']))+" hits ("+str(hratio)+"% of total - "+str(total_hits)+")"
-                    y = self.fetch_uniques(template, "ip")
-                    pratio =  round( (float(len(y)) / total_peers) * 100.0, 2)
-                    print "# "+self.grn.format(str(len(y)))+" peers triggered this ("+str(pratio)+"% of total - "+str(total_peers)+")"
-                    y = self.fetch_uniques(template, "uri")
-                    uratio = round((float(len(y)) / total_uri) * 100.0, 2)
-                    print "# "+self.grn.format(str(len(y)))+" URIs triggered this ("+str(uratio)+"% of total - "+str(total_uri)+")"
+                    uip_count = self.fetch_uniques(template, "ip")['total']
+                    # z = self.fetch_uniques(template, "ip")
+                    # pprint.pprint(z)
+                    pratio =  round( (float(uip_count) / total_peers) * 100.0, 2)
+                    print "# "+self.grn.format(str(uip_count))+" peers triggered this ("+str(pratio)+"% of total - "+str(total_peers)+")"
+                    uuri_count = self.fetch_uniques(template, "uri")['total']
+                    # z = self.fetch_uniques(template, "uri")
+                    # pprint.pprint(z)
+                    uratio = round( (float(uuri_count) / total_uri) * 100.0, 2)
+                    print "# "+self.grn.format(str(uuri_count))+" URIs triggered this ("+str(uratio)+"% of total - "+str(total_uri)+")"
                     # full auto baby !
-                    if hratio > 15 or pratio > 15 or uratio > 15:
+                    if hratio > 5 or pratio > 5 or uratio > 5:
                         print self.grn.format("#  template matched, generating all rules.")
                         whitelists = self.gen_wl(template, rule={})
-                        print str(len(whitelists))+" whitelists ..."
+                        #print str(len(whitelists))+" whitelists ..."
                         for genrule in whitelists:
                             stats = self.gather_stats(genrule['rule'], template)
                             stats['total_hits'] = total_hits
+                            #stats['total_ip_count'] = total_ip_count
                             stats['rule_hits'] = float(genrule['total_hits'])
                             stats['hit_ratio_template'] = (stats['rule_hits'] / stats['total_hits'] ) * 100
                             ratings = self.check_success(template, stats)
@@ -304,7 +313,7 @@ class NxTranslate():
         zone = ""
 
         wl = "BasicRule "
-        wl += " wl:"+str(rule.get('id', 0))
+        wl += " wl:"+str(rule.get('id', 0)).replace("OR", ",").replace("|", ",").replace(" ", "")
 
         wl += ' "mz:'
 
@@ -391,13 +400,16 @@ class NxTranslate():
         """ shortcut function to gather unique
         values and their associated match count """
         uniques = []
+        #print "req:",
+        #pprint.pprint(rule)
         esq = self.tpl2esq(rule)
-        esq['facets'] =  { "facet_results" : {"terms": { "field": key, "size" : self.es_max_size} }}
+        esq['facets'] =  { "facet_results" : {"terms": { "field": key, "size" : 50000} }}
         #res = self.es.search(index=self.cfg["elastic"]["index"], doc_type=self.cfg["elastic"]["doctype"], body=esq)
         res = self.search(esq)
+        #pprint.pprint(res)
         for x in res['facets']['facet_results']['terms']:
             uniques.append(x['term'])
-        return uniques
+        return { 'list' : uniques, 'total' :  len(uniques) }
     def index(self, body, eid):
         return self.es.index(index=self.cfg["elastic"]["index"], doc_type=self.cfg["elastic"]["doctype"], body=body, id=eid)
     def search(self, esq, stats=False):
@@ -501,7 +513,7 @@ class NxTranslate():
             elif tpl_key.startswith('?'):
                 if tpl_key[1:] in rule.keys():
                     continue
-                unique_vals = self.fetch_uniques(rule, tpl_key[1:])
+                unique_vals = self.fetch_uniques(rule, tpl_key[1:])['list']
                 for uval in unique_vals:
                     rule[tpl_key] = uval
                     retlist += self.gen_wl(tpl, copy.copy(rule))
@@ -509,7 +521,7 @@ class NxTranslate():
             elif tpl[tpl_key] == '?':
                 if tpl_key in rule.keys():
                     continue
-                unique_vals = self.fetch_uniques(rule, tpl_key)
+                unique_vals = self.fetch_uniques(rule, tpl_key)['list']
                 for uval in unique_vals:
                     rule[tpl_key] = uval
                     retlist += self.gen_wl(tpl, copy.copy(rule))
@@ -546,26 +558,35 @@ class NxTranslate():
          - count(id) matched crule
          - count(uri) matched crule'''
         stats = {}
-        facet = { "facet_results" : {"terms": { "field": '', "size" : self.es_max_size} }}
+        facet = { "facet_results" : {"terms": { "field": '', "size" : 0} }}
+        #facet = {"terms": { "field": ''}}
         # gather crule vs orule stats
         for x in ['ip', 'uri']:
-            facet['facet_results']['terms']['field'] = x
+            #facet['terms']['field'] = x
+            facet["facet_results"]['terms']['field'] = x
             # crule stats
+            #print "gathering matching  rule "+x+" matches :",
             esq = self.tpl2esq(crule)
             esq['facets'] = facet
+            #pprint.pprint(esq)
             res = self.search(esq)
-            stats['rule_'+x+'_count'] = len(res['facets']['facet_results']['terms'])
+            #print "RES:",
+            #pprint.pprint(res)
+            stats['rule_'+x+'_count'] = res['facets']['facet_results']['total']
             # orule stats
             esq = self.tpl2esq(orule)
             esq['facets'] = facet
             res = self.search(esq)
-            stats['template_'+x+'_count'] = len(res['facets']['facet_results']['terms'])
+            stats['template_'+x+'_count'] = res['facets']['facet_results']['total']
             # global filters stats
+            #print "GLOBAL"
+            #pprint.pprint(self.cfg["global_filters"])
             esq = self.tpl2esq(self.cfg["global_filters"])
             esq['facets'] = facet
             res = self.search(esq)
-            stats['global_'+x+'_count'] = len(res['facets']['facet_results']['terms'])
+            stats['global_'+x+'_count'] = res['facets']['facet_results']['total']
         stats['ip_ratio_template'] = (float(stats['rule_ip_count']) / stats['template_ip_count']) * 100.0
         stats['uri_ratio_template'] = (float(stats['rule_uri_count']) / stats['template_uri_count']) * 100.0
         stats['ip_ratio_global'] = (float(stats['rule_ip_count']) / stats['global_ip_count']) * 100.0
+        stats['uri_ratio_global'] = (float(stats['rule_uri_count']) / stats['global_uri_count']) * 100.0
         return stats

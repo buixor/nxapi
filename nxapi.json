@@ -4,7 +4,7 @@
  "index" : "nxapi",
  "doctype" : "events",
  "default_ttl" : "7200",
- "max_size" : "100"
+ "max_size" : "1000"
 },
 "global_filters" : {
  "whitelisted" : "false"
@@ -21,7 +21,8 @@
 },
 "naxsi" : {
  "rules_path" : "/etc/nginx/naxsi_core.rules",
- "template_path" : "tpl/"
+ "template_path" : "tpl/",
+ "geoipdb_path" : "nx_datas/country2coords.txt"
 },
 "output" : {
  "colors" : "true"
