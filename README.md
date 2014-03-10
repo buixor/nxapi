@@ -95,7 +95,7 @@ templates so far support :
     keep in mind that having several '?' fields will seriously increase processing time `(uniques(key1) * uniques(key2) ..)`
   * `"?key" : ".*p.*w.*d.*"` : Expand key values to all values matching regex.
     In outputed rule, `key` is set to matching data, `BasicRule wl:X "mz:$BODY_VAR:user_password";`
-  * ̀_statics : { "id" : "0" }` : If '_statics' is present, it will override fields values in final rule.
+  * `_statics : { "id" : "0" }` : If '_statics' is present, it will override fields values in final rule.
   * `_success : {}` and `_warnings : {}` : _success and _warning allow to expand ratings rules.
 
 
