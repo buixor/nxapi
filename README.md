@@ -82,7 +82,7 @@ A template for whitelist generation, ie.
 "id" : "?"}
 `
 
-This template means that nxapi will extract all possible rule IDs found in zone ̀$HEADERS_VAR:cookie`,
+This template means that nxapi will extract all possible rule IDs found in zone `$HEADERS_VAR:cookie`,
 and attempt to generate whitelists from it :
 
 `
