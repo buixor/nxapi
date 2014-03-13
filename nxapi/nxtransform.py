@@ -87,7 +87,8 @@ class NxTranslate():
                     if hratio > 5 or pratio > 5 or uratio > 5:
                         print self.grn.format("#  template matched, generating all rules.")
                         whitelists = self.gen_wl(template, rule={})
-                        #print str(len(whitelists))+" whitelists ..."
+                        
+                        print str(len(whitelists))+" whitelists ..."
                         for genrule in whitelists:
                             stats = self.gather_stats(genrule['rule'], template)
                             stats['total_hits'] = total_hits
@@ -101,7 +102,7 @@ class NxTranslate():
                             if strict is True and ratings['success'] <= 0:
                                 #print "DISCARD:NO_SUCCESS"
                                 continue
-                            self.display_rule(ratings, stats, genrule['rule'], template, genrule['content'])
+                            self.display_rule(ratings, stats, template, genrule)
 
     def load_tpl_file(self, tpl):
         """ open, json.loads a tpl file,
@@ -444,9 +445,13 @@ class NxTranslate():
                 if tpl[tpl_key][0] == token:
                     tpl[tpl_key][0] = replace[token]
         return tpl
-    def display_rule(self, ratings, stats, tmprule, template, contents=[]):
+    def display_rule(self, ratings, stats, template, content):
         """ displays a given rule+template to BasicRule,
         along with collected statistics """
+        tmprule = content["rule"]
+        exlog = content["content"]
+        uri = content["uri"]
+        peers = content["peers"]
         # If at least one warning was triggered, it might be a false positive
         if template is not None and '_statics' in template.keys():
             for k in template['_statics'].keys():
@@ -463,8 +468,12 @@ class NxTranslate():
         print "# "+str(round(stats['ip_ratio_template'], 2))+"% of (orig rule) peers triggered this WL ("+str(stats['rule_ip_count'])+"/"+str(stats['template_ip_count'])+")"
         print "# "+str(round(stats['uri_ratio_template'], 2))+"% of (orig rule) URLs triggered this WL ("+str(stats['rule_uri_count'])+"/"+str(stats['template_uri_count'])+")"
         print "# rule: "+self.blu.format(self.core_msg.get(tmprule.get('id', 0), "Unknown"))
-        for x in contents:
+        for x in exlog:
             print "# content: "+x.encode('utf-8')
+        for x in uri:
+            print "# uri: "+x.encode('utf-8')
+        for x in peers:
+            print "# peers: "+x.encode('utf-8')
         if ratings['success'] > 0:
             print self.grn.format(self.tpl2wl(tmprule)).encode('utf-8')
         else:
@@ -535,17 +544,25 @@ class NxTranslate():
     
         esq = self.tpl2esq(rule)
         res = self.search(esq)
-        
         if res['hits']['total'] > 0:
             clist = []
+            peers = []
+            uri = []
+            
         # extract 'content' for user display
             for x in res['hits']['hits']:
-                if len(x.get("_source").get("content", "")) > 0:
+                if len(x.get("_source").get("ip", "")) > 0 and x.get("_source").get("ip", "") not in peers:
+                    peers.append(x["_source"]["ip"])
+                if len(x.get("_source").get("uri", "")) > 0 and x.get("_source").get("uri", "") not in uri:
+                    uri.append(x["_source"]["uri"])
+                if len(x.get("_source").get("content", "")) > 0 and x.get("_source").get("content", "") not in content:
                     clist.append(x["_source"]["content"])
                     if len(clist) >= 5:
                         break
+            # pprint.pprint(esq)
+            # pprint.pprint(res)
                     
-            retlist.append({'rule' : rule, 'content' : clist, 'total_hits' : res['hits']['total']})
+            retlist.append({'rule' : rule, 'content' : clist[:5], 'total_hits' : res['hits']['total'], 'peers' : peers[:5], 'uri' : uri[:5]})
             return retlist
         return []
     def gather_stats(self, crule, orule):

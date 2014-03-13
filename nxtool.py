@@ -122,7 +122,22 @@ if options.full_auto is True:
 if options.template is not None:
     print translate.grn.format("#Loading tpl '"+options.template+"'")
     tpl = translate.load_tpl_file(options.template)
-    translate.gen_wl(tpl)
+    whitelists = translate.gen_wl(tpl)
+    print str(len(whitelists))+" whitelists ..."
+    for genrule in whitelists:
+        stats = translate.gather_stats(genrule['rule'], tpl)
+        # stats['total_hits'] = total_hits
+        #                     #stats['total_ip_count'] = total_ip_count
+        # stats['rule_hits'] = float(genrule['total_hits'])
+        # stats['hit_ratio_template'] = (stats['rule_hits'] / stats['total_hits'] ) * 100
+        #ratings = translate.check_success(tpl, stats)
+        # if strict is True and ratings['warning'] > 0:
+        #                         #print "DISCARD:WARNING"
+        #     continue
+        # if strict is True and ratings['success'] <= 0:
+        #                         #print "DISCARD:NO_SUCCESS"
+        #     continue
+        translate.display_rule({"success" : 1, "warning" : 0}, stats, tpl, genrule)
     sys.exit(1)
 
 # tagging options
@@ -159,7 +174,11 @@ if options.ips is not None:
             print "Unable to open ip file '"+wlf+"'"
             sys.exit(-1)
         for wl in wlfd:
-            tpl["ip"] = wl
+            print "=>"+wl
+            tpl["ip"] = wl.strip('\n')
+            esq = translate.tpl2esq(tpl)
+            pprint.pprint(esq)
+            pprint.pprint(tpl)
             count += translate.tag_events(esq, "BadIPS", tag=options.tag)
         print translate.grn.format(str(count)) + " items to be tagged ..."
         count = 0
