@@ -77,6 +77,9 @@ class NxRating():
             return self.stats[scope][score]
     def check_rule_score(self, tpl):
         """ wrapper to check_score, TOFIX ? """
+#        print "CHECK SCORE TPL :",
+#        pprint.pprint(tpl.get('_warnings', None))
+        
         return self.check_score(tpl_success=tpl.get('_success', None), tpl_warnings=tpl.get('_warnings', None))
     def check_score(self, tpl_success=None, tpl_warnings=None):
         # g_success_cpt = 0
@@ -85,6 +88,9 @@ class NxRating():
         # tpl_warning_cpt = 0
         success = []
         warning = []
+#        if tpl_warnings is not None:
+#            print "TPL WARNINGS",
+#            pprint.pprint(tpl_warnings)
         glb_success = self.global_success
         glb_warnings = self.global_warnings
         if glb_success is not None:
@@ -102,19 +108,23 @@ class NxRating():
                 if res['check'] is True:
                     warning.append({'key' : k, 'criteria' : glb_warnings[k], 'curr' : res['curr']})
         if tpl_success is not None:
-            # print "TPL SUCCESS:",
-            # pprint.pprint(glb_success)
+#            print "TPL SUCCESS:",
+#            pprint.pprint(tpl_success)
             for k in tpl_success.keys():
                 res = self.check_rule(k, tpl_success[k])
                 if res['check'] is True:
                     success.append({'key' : k, 'criteria' : tpl_success[k], 'curr' : res['curr']})
         if tpl_warnings is not None:
-            # print "TPL WARNINGS:",
-            # pprint.pprint(glb_success)
+#            print "TPL WARNINGS:",
+#            pprint.pprint(tpl_warnings)
             for k in tpl_warnings.keys():
                 res = self.check_rule(k, tpl_warnings[k])
                 if res['check'] is True:
                     warning.append({'key' : k, 'criteria' : tpl_warnings[k], 'curr' : res['curr']})
+                else:
+                    print "FAILED TEST:",
+                    pprint.pprint(res)
+
         x = { 'success' : success,
                  'warnings' : warning }
         # print "CHECK_SCORE RESULTS :",
@@ -134,7 +144,9 @@ class NxRating():
             score = items[1]
             x = self.get(scope, score)
             #print "curr:"+str(x)+",target:"+str(beat)
-            return {'curr' : x, 'check' : check(self.get(scope, score), beat)}
+            #print str(self.get)(scope, score), beat)}"
+#            print str(check)+"("+str(self.get(scope, score))+", "+str(beat)+") = "+str( check(int(self.get(scope, score)), beat))
+            return {'curr' : x, 'check' : check( int(self.get(scope, score)), beat)}
         elif len(items) == 4:
 #            print "RATIO !!"
             scope = items[0]
@@ -250,8 +262,8 @@ class NxTranslate():
             return None
         if '_success' in template.keys():
             template['_success'] = self.normalize_checks(template['_success'])
-        if '_warning' in template.keys():
-            template['_warning'] = self.normalize_checks(template['_warning'])
+        if '_warnings' in template.keys():
+            template['_warnings'] = self.normalize_checks(template['_warnings'])
         #return self.tpl_append_gfilter(template)
         return template
     def load_wl_file(self, wlf):
@@ -467,45 +479,45 @@ class NxTranslate():
         return wl
     #def check_criterias(self, template, , stats, results):
     #pass
-    def check_success(self, rule, stats):
-        """ check met/failed success/warning criterias
-        of a given template vs a set of results """
-        score = 0
-        warnings = 0
+    # def check_success(self, rule, stats):
+    #     """ check met/failed success/warning criterias
+    #     of a given template vs a set of results """
+    #     score = 0
+    #     warnings = 0
 
-        # Check as rule's specific warning criterias
-        if '_warning' in rule.keys():
-            for sucrule in rule['_warning'].keys():
-                if sucrule not in stats.keys():
-                    continue
-                else:
-                    if rule['_warning'][sucrule][0](stats[sucrule], rule['_warning'][sucrule][1]) is True:
-                        warnings += 1
-        # Check success rules, and increase score if conditions are met.
-        if '_success' in rule.keys():
-            for sucrule in rule['_success'].keys():
-                if sucrule not in stats.keys():
-                    continue
-                else:
-                    if rule['_success'][sucrule][0](stats[sucrule], rule['_success'][sucrule][1]) is True:
-                        score += 1
+    #     # Check as rule's specific warning criterias
+    #     if '_warning' in rule.keys():
+    #         for sucrule in rule['_warning'].keys():
+    #             if sucrule not in stats.keys():
+    #                 continue
+    #             else:
+    #                 if rule['_warning'][sucrule][0](stats[sucrule], rule['_warning'][sucrule][1]) is True:
+    #                     warnings += 1
+    #     # Check success rules, and increase score if conditions are met.
+    #     if '_success' in rule.keys():
+    #         for sucrule in rule['_success'].keys():
+    #             if sucrule not in stats.keys():
+    #                 continue
+    #             else:
+    #                 if rule['_success'][sucrule][0](stats[sucrule], rule['_success'][sucrule][1]) is True:
+    #                     score += 1
 
-        # Check generic success rules and generic warnings
-        for sucrule in self.cfg["global_warning_rules"].keys():
-            if sucrule not in stats.keys():
-                continue
-            else:
-                if self.cfg["global_warning_rules"][sucrule][0](stats[sucrule], self.cfg["global_warning_rules"][sucrule][1]) is True:
-                    warnings += 1
+    #     # Check generic success rules and generic warnings
+    #     for sucrule in self.cfg["global_warning_rules"].keys():
+    #         if sucrule not in stats.keys():
+    #             continue
+    #         else:
+    #             if self.cfg["global_warning_rules"][sucrule][0](stats[sucrule], self.cfg["global_warning_rules"][sucrule][1]) is True:
+    #                 warnings += 1
 
-        # Check generic success rules and generic warnings
-        for sucrule in self.cfg["global_success_rules"].keys():
-            if sucrule not in stats.keys():
-                continue
-            else:
-                if self.cfg["global_success_rules"][sucrule][0](stats[sucrule], self.cfg["global_success_rules"][sucrule][1]) is True:
-                    score += 1
-        return { 'success' : score, 'warning' : warnings }
+    #     # Check generic success rules and generic warnings
+    #     for sucrule in self.cfg["global_success_rules"].keys():
+    #         if sucrule not in stats.keys():
+    #             continue
+    #         else:
+    #             if self.cfg["global_success_rules"][sucrule][0](stats[sucrule], self.cfg["global_success_rules"][sucrule][1]) is True:
+    #                 score += 1
+    #     return { 'success' : score, 'warning' : warnings }
     def fetch_top(self, template, field, limit=10):
         """ fetch top items for a given field,
         clears the field if exists in gfilters """
@@ -539,7 +551,8 @@ class NxTranslate():
         res = self.search(esq)
         #pprint.pprint(res)
         for x in res['facets']['facet_results']['terms']:
-            uniques.append(x['term'])
+            if x['term'] not in uniques:
+                uniques.append(x['term'])
         #print "UNIQUES LEN:"+str(len(uniques)),
         #pprint.pprint(uniques)
         return { 'list' : uniques, 'total' :  len(uniques) }
