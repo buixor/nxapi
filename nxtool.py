@@ -119,25 +119,38 @@ translate = NxTranslate(es, cfg)
 if options.full_auto is True:
     translate.full_auto()
     sys.exit(1)
+
 if options.template is not None:
-    print translate.grn.format("#Loading tpl '"+options.template+"'")
-    tpl = translate.load_tpl_file(options.template)
-    whitelists = translate.gen_wl(tpl)
-    print str(len(whitelists))+" whitelists ..."
-    for genrule in whitelists:
-        stats = translate.gather_stats(genrule['rule'], tpl)
-        # stats['total_hits'] = total_hits
-        #                     #stats['total_ip_count'] = total_ip_count
-        # stats['rule_hits'] = float(genrule['total_hits'])
-        # stats['hit_ratio_template'] = (stats['rule_hits'] / stats['total_hits'] ) * 100
-        #ratings = translate.check_success(tpl, stats)
-        # if strict is True and ratings['warning'] > 0:
-        #                         #print "DISCARD:WARNING"
-        #     continue
-        # if strict is True and ratings['success'] <= 0:
-        #                         #print "DISCARD:NO_SUCCESS"
-        #     continue
-        translate.display_rule({"success" : 1, "warning" : 0}, stats, tpl, genrule)
+    scoring = NxRating(cfg.cfg, es, translate)
+    
+    tpls = translate.expand_tpl_path(options.template)
+    gstats = {}
+    if len(tpls) <= 0:
+        print "No template matching"
+        sys.exit(1)
+    # prepare statistics for global scope
+    scoring.refresh_scope('global', translate.tpl2esq(cfg.cfg["global_filters"]))
+    for tpl_f in tpls:
+        print translate.grn.format("#Loading tpl '"+tpl_f+"'")
+        tpl = translate.load_tpl_file(tpl_f)
+        # prepare statistics for filter scope
+        scoring.refresh_scope('template', translate.tpl2esq(tpl))
+        print "Hits of template : "+str(scoring.get('template', 'total'))
+        whitelists = translate.gen_wl(tpl)
+        print str(len(whitelists))+" whitelists ..."
+        for genrule in whitelists:
+            scoring.refresh_scope('rule', translate.tpl2esq(genrule['rule']))
+            scores = scoring.check_rule_score(tpl)
+            if len(scores['success']) > 0:
+                print str(len(scores['success']))+" success"
+                pprint.pprint(scores['success'])
+                print str(len(scores['warnings']))+" fails"
+                pprint.pprint(scores['warnings'])
+                #print translate.grn.display_scores(scores)
+                print translate.grn.format(translate.tpl2wl(genrule['rule'])).encode('utf-8')
+                #translate.display_rule(, tpl, genrule)
+            else:
+                print "check is false"
     sys.exit(1)
 
 # tagging options
@@ -194,6 +207,8 @@ if options.stats is True:
     translate.fetch_top(cfg.cfg["global_filters"], "uri", limit=10)
     print translate.red.format("# Top Zone(s) :")
     translate.fetch_top(cfg.cfg["global_filters"], "zone", limit=10)
+    print translate.red.format("# Top Peer(s) :")
+    translate.fetch_top(cfg.cfg["global_filters"], "ip", limit=10)
     sys.exit(1)
 
 # input options, only setup injector if one input option is present
@@ -204,6 +219,7 @@ if options.files_in is not None or options.fifo_in is not None or options.stdin 
     try:
         geoloc = NxGeoLoc(cfg.cfg)
     except:
+        print "Unable to get GeoIP"
         sys.exit(-1)
 
 if options.files_in is not None:

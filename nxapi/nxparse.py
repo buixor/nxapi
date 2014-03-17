@@ -380,7 +380,7 @@ class ESInject(NxInjector):
                                      "zone" : {"type": "string", "index" : "not_analyzed"},
                                      "server" : {"type": "string", "index" : "not_analyzed"},
                                      "whitelisted" : {"type" : "string", "index" : "not_analyzed"},
-                                     "ip" : { "type" : "ip", "index" : "not_analyzed"}
+                                     "ip" : { "type" : "string", "index" : "not_analyzed"}
                                      }
                     }
                 })
@@ -457,6 +457,7 @@ class NxGeoLoc():
             logging.warning("""Python's GeoIP module is not present.
             'World Map' reports won't work,
             and you can't use per-country filters.""")
+            raise ValueError
         if not os.path.isfile(self.cfg["naxsi"]["geoipdb_path"]):
             logging.error("Unable to load GeoIPdb.")
             raise ValueError
