@@ -117,6 +117,7 @@ translate = NxTranslate(es, cfg)
 
 # whitelist generation options
 if options.full_auto is True:
+    translate.load_cr_file(translate.cfg["naxsi"]["rules_path"])
     translate.full_auto()
     sys.exit(1)
 
@@ -141,16 +142,9 @@ if options.template is not None:
         for genrule in whitelists:
             scoring.refresh_scope('rule', translate.tpl2esq(genrule['rule']))
             scores = scoring.check_rule_score(tpl)
-            if len(scores['success']) > 0:
-                print str(len(scores['success']))+" success"
-                pprint.pprint(scores['success'])
-                print str(len(scores['warnings']))+" fails"
-                pprint.pprint(scores['warnings'])
-                #print translate.grn.display_scores(scores)
+            if len(scores['success']) > len(scores['warnings']) or cfg.cfg["naxsi"]["strict"] == "false":
+                translate.fancy_display(genrule, scores)
                 print translate.grn.format(translate.tpl2wl(genrule['rule'])).encode('utf-8')
-                #translate.display_rule(, tpl, genrule)
-            else:
-                print "check is false"
     sys.exit(1)
 
 # tagging options

@@ -67,94 +67,60 @@ class NxRating():
             if score is not 'total':
                 self.stats[scope][score] = self.tr.fetch_uniques(self.esq[scope], score)['total']
             else:
-                #self.stats[scope][score] = self.es.search(self.esq[scope])['hits']['total']
-#                print "REQ:",
-#                pprint.pprint(self.esq[scope])
                 res = self.tr.search(self.esq[scope])
-#                pprint.pprint(res)
                 self.stats[scope][score] = res['hits']['total']
             
             return self.stats[scope][score]
     def check_rule_score(self, tpl):
         """ wrapper to check_score, TOFIX ? """
-#        print "CHECK SCORE TPL :",
-#        pprint.pprint(tpl.get('_warnings', None))
-        
         return self.check_score(tpl_success=tpl.get('_success', None), tpl_warnings=tpl.get('_warnings', None))
     def check_score(self, tpl_success=None, tpl_warnings=None):
-        # g_success_cpt = 0
-        # g_warning_cpt = 0
-        # tpl_success_cpt = 0
-        # tpl_warning_cpt = 0
         success = []
         warning = []
-#        if tpl_warnings is not None:
-#            print "TPL WARNINGS",
-#            pprint.pprint(tpl_warnings)
         glb_success = self.global_success
         glb_warnings = self.global_warnings
         if glb_success is not None:
-            # print "GLOBAL SUCCESS:",
-            # pprint.pprint(glb_success)
             for k in glb_success.keys():
                 res = self.check_rule(k, glb_success[k])
                 if res['check'] is True:
                     success.append({'key' : k, 'criteria' : glb_success[k], 'curr' : res['curr']})
         if glb_warnings is not None:
-            # print "GLOBAL WARNINGS:",
-            # pprint.pprint(glb_success)
             for k in glb_warnings.keys():
                 res =  self.check_rule(k, glb_warnings[k])
                 if res['check'] is True:
                     warning.append({'key' : k, 'criteria' : glb_warnings[k], 'curr' : res['curr']})
         if tpl_success is not None:
-#            print "TPL SUCCESS:",
-#            pprint.pprint(tpl_success)
             for k in tpl_success.keys():
                 res = self.check_rule(k, tpl_success[k])
                 if res['check'] is True:
                     success.append({'key' : k, 'criteria' : tpl_success[k], 'curr' : res['curr']})
         if tpl_warnings is not None:
-#            print "TPL WARNINGS:",
-#            pprint.pprint(tpl_warnings)
             for k in tpl_warnings.keys():
                 res = self.check_rule(k, tpl_warnings[k])
                 if res['check'] is True:
                     warning.append({'key' : k, 'criteria' : tpl_warnings[k], 'curr' : res['curr']})
-                else:
-                    print "FAILED TEST:",
-                    pprint.pprint(res)
 
         x = { 'success' : success,
                  'warnings' : warning }
-        # print "CHECK_SCORE RESULTS :",
-        # pprint.pprint(x)
         return x
     def check_rule(self, label, check_rule):
         """ check met/failed success/warning criterias
         of a given template vs a set of results """
-        #pprint.pprint(check_rule)
         check = check_rule[0]
         beat = check_rule[1]
         
         items = label.split('_')
-        #print "label :"+label+":",
         if len(items) == 2:
             scope = items[0]
             score = items[1]
             x = self.get(scope, score)
-            #print "curr:"+str(x)+",target:"+str(beat)
-            #print str(self.get)(scope, score), beat)}"
-#            print str(check)+"("+str(self.get(scope, score))+", "+str(beat)+") = "+str( check(int(self.get(scope, score)), beat))
             return {'curr' : x, 'check' : check( int(self.get(scope, score)), beat)}
         elif len(items) == 4:
-#            print "RATIO !!"
             scope = items[0]
             scope_small = items[1]
             score = items[2]
             x = self.get(scope, score, scope_small=scope_small)
             return {'curr' : x, 'check' : check(self.get(scope, score, scope_small=scope_small), beat)}
-        #return check(self.get(scope, score, scope_small=scope_small), beat)
         else:
             print "cannot understand rule ("+label+"):",
             pprint.pprint(check_rule)
@@ -220,12 +186,23 @@ class NxTranslate():
                         for genrule in whitelists:
                             scoring.refresh_scope('rule', genrule['rule'])
                             results = scoring.check_rule_score(template)
-                            if len(results['success']) > 0:
-                                print "#some success :)"
-                                pprint.pprint(results)
+                            if len(results['success']) > len(results['warnings']) or self.cfg["naxsi"]["strict"] == "false":
+                                self.fancy_display(genrule, results)
                                 print self.grn.format(self.tpl2wl(genrule['rule'])).encode('utf-8')
                                 
+    def fancy_display(self, full_wl, scores):
+#        print ""("+str(len(scores['warnings']))+" warnings)")
+        rid = full_wl['rule'].get('id', "0")
+        print "#Rule ("+rid+") "+self.core_msg.get(rid, 'Unknown ..')
+        if self.cfg["output"]["verbosity"] >= 4:
+            print "#total hits "+str(full_wl['total_hits'])
+            for x in [ "content", "peers", "uri" ]:
+                for y in full_wl[x]:
+                    print "#"+x+" : "+unicode(y).encode("utf-8") #str(y)
+        for x in scores['success']:
+            print "# success : "+self.grn.format(str(x['key'])+" is "+str(x['curr']))
 
+        pass
     def expand_tpl_path(self, template):
         """ attempts to convert stuff to valid tpl paths.
         if it starts with / or . it will consider it's a relative/absolute path,
@@ -384,13 +361,8 @@ class NxTranslate():
                 mz_str = x[3:]
                 [res, filters] = self.parse_mz(mz_str, esq)
                 if res is False:
-                    #print "mz parse failed : "+str(filters)
                     return [False, "matchzone parsing failed."]
-        #print "#rule: "+raw_line
-        #pprint.pprint(filters)
         esq = self.append_gfilter(esq)
-        #print "##after :"
-        #pprint.pprint(filters)
         return [True, filters]
     def parse_mz(self, mz_str, esq):
         """ parses a match zone from BasicRule, and updates
@@ -477,47 +449,6 @@ class NxTranslate():
 
         wl += '";'
         return wl
-    #def check_criterias(self, template, , stats, results):
-    #pass
-    # def check_success(self, rule, stats):
-    #     """ check met/failed success/warning criterias
-    #     of a given template vs a set of results """
-    #     score = 0
-    #     warnings = 0
-
-    #     # Check as rule's specific warning criterias
-    #     if '_warning' in rule.keys():
-    #         for sucrule in rule['_warning'].keys():
-    #             if sucrule not in stats.keys():
-    #                 continue
-    #             else:
-    #                 if rule['_warning'][sucrule][0](stats[sucrule], rule['_warning'][sucrule][1]) is True:
-    #                     warnings += 1
-    #     # Check success rules, and increase score if conditions are met.
-    #     if '_success' in rule.keys():
-    #         for sucrule in rule['_success'].keys():
-    #             if sucrule not in stats.keys():
-    #                 continue
-    #             else:
-    #                 if rule['_success'][sucrule][0](stats[sucrule], rule['_success'][sucrule][1]) is True:
-    #                     score += 1
-
-    #     # Check generic success rules and generic warnings
-    #     for sucrule in self.cfg["global_warning_rules"].keys():
-    #         if sucrule not in stats.keys():
-    #             continue
-    #         else:
-    #             if self.cfg["global_warning_rules"][sucrule][0](stats[sucrule], self.cfg["global_warning_rules"][sucrule][1]) is True:
-    #                 warnings += 1
-
-    #     # Check generic success rules and generic warnings
-    #     for sucrule in self.cfg["global_success_rules"].keys():
-    #         if sucrule not in stats.keys():
-    #             continue
-    #         else:
-    #             if self.cfg["global_success_rules"][sucrule][0](stats[sucrule], self.cfg["global_success_rules"][sucrule][1]) is True:
-    #                 score += 1
-    #     return { 'success' : score, 'warning' : warnings }
     def fetch_top(self, template, field, limit=10):
         """ fetch top items for a given field,
         clears the field if exists in gfilters """
@@ -540,21 +471,13 @@ class NxTranslate():
     def fetch_uniques(self, rule, key):
         """ shortcut function to gather unique
         values and their associated match count """
-        # print "fetch_uniques :",
-        # pprint.pprint(rule)
         uniques = []
-        #print "req:",
-        #pprint.pprint(rule)
         esq = self.tpl2esq(rule)
         esq['facets'] =  { "facet_results" : {"terms": { "field": key, "size" : 50000} }}
-        #res = self.es.search(index=self.cfg["elastic"]["index"], doc_type=self.cfg["elastic"]["doctype"], body=esq)
         res = self.search(esq)
-        #pprint.pprint(res)
         for x in res['facets']['facet_results']['terms']:
             if x['term'] not in uniques:
                 uniques.append(x['term'])
-        #print "UNIQUES LEN:"+str(len(uniques)),
-        #pprint.pprint(uniques)
         return { 'list' : uniques, 'total' :  len(uniques) }
     def index(self, body, eid):
         return self.es.index(index=self.cfg["elastic"]["index"], doc_type=self.cfg["elastic"]["doctype"], body=body, id=eid)
@@ -588,41 +511,6 @@ class NxTranslate():
                 if tpl[tpl_key][0] == token:
                     tpl[tpl_key][0] = replace[token]
         return tpl
-    def display_rule(self, ratings, stats, template, content):
-        """ displays a given rule+template to BasicRule,
-        along with collected statistics """
-        tmprule = content["rule"]
-        exlog = content["content"]
-        uri = content["uri"]
-        peers = content["peers"]
-        # If at least one warning was triggered, it might be a false positive
-        if template is not None and '_statics' in template.keys():
-            for k in template['_statics'].keys():
-                tmprule[k] = template['_statics'][k]
-
-        print "\n\n"
-        if ratings['warning'] > 0:
-            print self.red.format("# At least one warning was raised, might be a FP")
-            print "# Warnings : "+self.red.format('*' * ( ratings['warning']))
-        
-        print "# Rating : "+self.grn.format('*' * ( ratings['success'] - ratings['warning']))
-        print "# "+str(round(stats['hit_ratio_template'], 2))+"% of (total) evts matched WL ("+str(stats['rule_hits'])+"/"+str(stats['total_hits'])+")"
-        print "# "+str(round(stats['ip_ratio_global'], 2))+"% of (total) peers triggered this WL ("+str(stats['rule_ip_count'])+"/"+str(stats['global_ip_count'])+")"
-        print "# "+str(round(stats['ip_ratio_template'], 2))+"% of (orig rule) peers triggered this WL ("+str(stats['rule_ip_count'])+"/"+str(stats['template_ip_count'])+")"
-        print "# "+str(round(stats['uri_ratio_template'], 2))+"% of (orig rule) URLs triggered this WL ("+str(stats['rule_uri_count'])+"/"+str(stats['template_uri_count'])+")"
-        print "# rule: "+self.blu.format(self.core_msg.get(tmprule.get('id', 0), "Unknown"))
-        for x in exlog:
-            print "# content: "+x.encode('utf-8')
-        for x in uri:
-            print "# uri: "+x.encode('utf-8')
-        for x in peers:
-            print "# peers: "+x.encode('utf-8')
-        if ratings['success'] > 0:
-            print self.grn.format(self.tpl2wl(tmprule)).encode('utf-8')
-        else:
-            print "# "+self.red.format(self.tpl2wl(tmprule)).encode('utf-8')
-
-
     def tag_events(self, esq, msg, tag=False):
         """ tag events with msg + tstamp if they match esq """
         count = 0
@@ -664,10 +552,7 @@ class NxTranslate():
             if tpl_key.startswith('_'):
                 continue
             elif tpl_key.startswith('?'):
-#                print "check if "+tpl_key+" is here :",
-                
                 if tpl_key[1:] in rule.keys():
- #                   print "yes"
                     continue
                 unique_vals = self.fetch_uniques(rule, tpl_key[1:])['list']
                 for uval in unique_vals:
