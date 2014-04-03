@@ -132,19 +132,25 @@ if options.template is not None:
     # prepare statistics for global scope
     scoring.refresh_scope('global', translate.tpl2esq(cfg.cfg["global_filters"]))
     for tpl_f in tpls:
+        scoring.refresh_scope('rule', {})
+        scoring.refresh_scope('template', {})
+        
         print translate.grn.format("#Loading tpl '"+tpl_f+"'")
         tpl = translate.load_tpl_file(tpl_f)
         # prepare statistics for filter scope
         scoring.refresh_scope('template', translate.tpl2esq(tpl))
+        #pprint.pprint(tpl)
         print "Hits of template : "+str(scoring.get('template', 'total'))
-        whitelists = translate.gen_wl(tpl)
+        
+        whitelists = translate.gen_wl(tpl, rule={})
         print str(len(whitelists))+" whitelists ..."
         for genrule in whitelists:
-            scoring.refresh_scope('rule', translate.tpl2esq(genrule['rule']))
+            #pprint.pprint(genrule)
+            scoring.refresh_scope('rule', genrule['rule'])
             scores = scoring.check_rule_score(tpl)
             if len(scores['success']) > len(scores['warnings']) or cfg.cfg["naxsi"]["strict"] == "false":
-                translate.fancy_display(genrule, scores)
-                print translate.grn.format(translate.tpl2wl(genrule['rule'])).encode('utf-8')
+                translate.fancy_display(genrule, scores, tpl)
+                print translate.grn.format(translate.tpl2wl(genrule['rule'], tpl)).encode('utf-8')
     sys.exit(1)
 
 # tagging options

@@ -46,8 +46,12 @@ class NxRating():
         """ drops all datas for a named scope """
         if scope not in self.esq.keys():
             print "Unknown scope ?!"+scope
+#        print "REFRESH SCOPE :"+scope+" : ",
+#        pprint.pprint(esq)
         self.esq[scope] = esq
         self.stats[scope] = {}
+#        print "SCORING/SCOPES :"
+#        pprint.pprint(self.esq)
     def query_ratio(self, scope, scope_small, score, force_refresh):
         """ wrapper to calculate ratio between two vals, rounded float """
         #print "ratio :"+str(self.get(scope_small, score))+" / "+str( self.get(scope, score))
@@ -187,19 +191,25 @@ class NxTranslate():
                             scoring.refresh_scope('rule', genrule['rule'])
                             results = scoring.check_rule_score(template)
                             if len(results['success']) > len(results['warnings']) or self.cfg["naxsi"]["strict"] == "false":
-                                self.fancy_display(genrule, results)
-                                print self.grn.format(self.tpl2wl(genrule['rule'])).encode('utf-8')
+                                self.fancy_display(genrule, results, template)
+                                print self.grn.format(self.tpl2wl(genrule['rule']), template).encode('utf-8')
                                 
-    def fancy_display(self, full_wl, scores):
-#        print ""("+str(len(scores['warnings']))+" warnings)")
+    def fancy_display(self, full_wl, scores, template=None):
+        if template is not None and '_msg' in template.keys():
+            print "#msg: "+template['_msg']
         rid = full_wl['rule'].get('id', "0")
         print "#Rule ("+rid+") "+self.core_msg.get(rid, 'Unknown ..')
         if self.cfg["output"]["verbosity"] >= 4:
             print "#total hits "+str(full_wl['total_hits'])
-            for x in [ "content", "peers", "uri" ]:
+            for x in [ "content", "peers", "uri", "var_name" ]:
+                if not x in full_wl.keys():
+                    continue
                 for y in full_wl[x]:
                     print "#"+x+" : "+unicode(y).encode("utf-8") #str(y)
+        pprint.pprint(scores)
         for x in scores['success']:
+            print "# success : "+self.grn.format(str(x['key'])+" is "+str(x['curr']))
+        for x in scores['warnings']:
             print "# success : "+self.grn.format(str(x['key'])+" is "+str(x['curr']))
 
         pass
@@ -418,11 +428,14 @@ class NxTranslate():
                     zone += "|NAME"
                 tpl.append({"text" : {"zone" : zone}})
         return [True, esq]
-    def tpl2wl(self, rule):
+    def tpl2wl(self, rule, template=None):
         """ transforms a rule/esq
         to a valid BasicRule. """
         tname = False
         zone = ""
+        if template is not None and '_statics' in template.keys():
+            for x in template['_statics'].keys():
+                rule[x] = template['_statics'][x]
 
         wl = "BasicRule "
         wl += " wl:"+str(rule.get('id', 0)).replace("OR", ",").replace("|", ",").replace(" ", "")
@@ -578,16 +591,20 @@ class NxTranslate():
             clist = []
             peers = []
             uri = []
-            
+            var_name = []
+
             for x in res['hits']['hits']:
                 if len(x.get("_source").get("ip", "")) > 0 and x.get("_source").get("ip", "") not in peers:
                     peers.append(x["_source"]["ip"])
                 if len(x.get("_source").get("uri", "")) > 0 and x.get("_source").get("uri", "") not in uri:
                     uri.append(x["_source"]["uri"])
+                if len(x.get("_source").get("var_name", "")) > 0 and x.get("_source").get("var_name", "") not in var_name:
+                    var_name.append(x["_source"]["var_name"])
                 if len(x.get("_source").get("content", "")) > 0 and x.get("_source").get("content", "") not in clist:
                     clist.append(x["_source"]["content"])
                     if len(clist) >= 5:
                         break
-            retlist.append({'rule' : rule, 'content' : clist[:5], 'total_hits' : res['hits']['total'], 'peers' : peers[:5], 'uri' : uri[:5]})
+            retlist.append({'rule' : rule, 'content' : clist[:5], 'total_hits' : res['hits']['total'], 'peers' : peers[:5], 'uri' : uri[:5],
+                            'var_name' : var_name[:5]})
             return retlist
         return []
