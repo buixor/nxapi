@@ -112,8 +112,12 @@ class NxRating():
         of a given template vs a set of results """
         check = check_rule[0]
         beat = check_rule[1]
-        
+        if label.find("var_name") != -1:
+            label = label.replace("var_name", "var-name")
         items = label.split('_')
+        for x in range(len(items)):
+            items[x] = items[x].replace("var-name", "var_name")
+            
         if len(items) == 2:
             scope = items[0]
             score = items[1]
