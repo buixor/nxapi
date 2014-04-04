@@ -213,7 +213,10 @@ if options.stats is True:
 
 # input options, only setup injector if one input option is present
 if options.files_in is not None or options.fifo_in is not None or options.stdin is not None:
-    injector = ESInject(es, cfg.cfg)
+    if options.fifo_in is not None:
+        injector = ESInject(es, cfg.cfg, auto_commit_limit=1)
+    else:
+        injector = ESInject(es, cfg.cfg)
     parser = NxParser()
     parser.out_date_format = "%Y-%m-%dT%H:%M:%SZ" #ES-friendly
     try:

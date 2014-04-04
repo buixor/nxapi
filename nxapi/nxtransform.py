@@ -77,35 +77,94 @@ class NxRating():
             return self.stats[scope][score]
     def check_rule_score(self, tpl):
         """ wrapper to check_score, TOFIX ? """
-        return self.check_score(tpl_success=tpl.get('_success', None), tpl_warnings=tpl.get('_warnings', None))
-    def check_score(self, tpl_success=None, tpl_warnings=None):
+        return self.check_score(tpl_success=tpl.get('_success', None), 
+                                tpl_warnings=tpl.get('_warnings', None), 
+                                tpl_deny=tpl.get('_deny', None))
+    def check_score(self, tpl_success=None, tpl_warnings=None, tpl_deny=None):
+        debug = True
         success = []
         warning = []
+        deny = False
+        failed_tests = {"success" : [], "warnings" : []}
         glb_success = self.global_success
         glb_warnings = self.global_warnings
-        if glb_success is not None:
-            for k in glb_success.keys():
-                res = self.check_rule(k, glb_success[k])
+
+        for sdeny in [tpl_deny]:
+            if sdeny is None:
+                continue
+            for k in sdeny.keys():
+                res = self.check_rule(k, sdeny[k])
                 if res['check'] is True:
-                    success.append({'key' : k, 'criteria' : glb_success[k], 'curr' : res['curr']})
-        if glb_warnings is not None:
-            for k in glb_warnings.keys():
-                res =  self.check_rule(k, glb_warnings[k])
+                    print "WE SHOULD DENY THAT"
+                    deny = True
+                    break
+        for scheck in [glb_success, tpl_success]:
+            if scheck is None:
+                continue
+            for k in scheck.keys():
+                res = self.check_rule(k, scheck[k])
                 if res['check'] is True:
-                    warning.append({'key' : k, 'criteria' : glb_warnings[k], 'curr' : res['curr']})
-        if tpl_success is not None:
-            for k in tpl_success.keys():
-                res = self.check_rule(k, tpl_success[k])
+                    if debug is True:
+                        print "[SUCCESS] OK, on "+k+" vs "+str(res['curr'])+", check :"+str(scheck[k][0])+" - "+str(scheck[k][1])
+                    success.append({'key' : k, 'criteria' : scheck[k], 'curr' : res['curr']})
+                else:
+                    if debug is True:
+                        print "[SUCCESS] KO, on "+k+" vs "+str(res['curr'])+", check :"+str(scheck[k][0])+" - "+str(scheck[k][1])
+                    failed_tests["success"].append({'key' : k, 'criteria' : scheck[k], 'curr' : res['curr']})
+                
+        for fcheck in [glb_warnings, tpl_warnings]:
+            if fcheck is None:
+                continue
+            for k in fcheck.keys():
+                res = self.check_rule(k, fcheck[k])
                 if res['check'] is True:
-                    success.append({'key' : k, 'criteria' : tpl_success[k], 'curr' : res['curr']})
-        if tpl_warnings is not None:
-            for k in tpl_warnings.keys():
-                res = self.check_rule(k, tpl_warnings[k])
-                if res['check'] is True:
-                    warning.append({'key' : k, 'criteria' : tpl_warnings[k], 'curr' : res['curr']})
+                    if debug is True:
+                        print "[WARNINGS] TRIGGERED, on "+k+" vs "+str(res['curr'])+", check :"+str(fcheck[k][0])+" - "+str(fcheck[k][1])
+                    warning.append({'key' : k, 'criteria' : fcheck[k], 'curr' : res['curr']})
+                else:
+                    if debug is True:
+                        print "[WARNINGS] NOT TRIGGERED, on "+k+" vs "+str(res['curr'])+", check :"+str(fcheck[k][0])+" - "+str(fcheck[k][1])
+                    failed_tests["warnings"].append({'key' : k, 'criteria' : fcheck[k], 'curr' : res['curr']})
+
+#            pass
+
+        # if glb_success is not None:
+        #     for k in glb_success.keys():
+        #         res = self.check_rule(k, glb_success[k])
+        #         if res['check'] is True:
+        #             if debug is True:
+        #                 print "[SUCCESS] check OK, on "+k+" vs "+str(res['curr'])+", check :"+str(glb_success[k][0])+" - "+str(glb_success[k][1])
+        #             success.append({'key' : k, 'criteria' : glb_success[k], 'curr' : res['curr']})
+        #         else:
+        #             if debug is True:
+        #                 print "[SUCCESS] check KO, on "+k+" vs "+str(res['curr'])+", check :"+str(glb_success[k][0])+" - "+str(glb_success[k][1])
+        #             failed_tests["success"].append({'key' : k, 'criteria' : glb_success[k], 'curr' : res['curr']})
+        # if glb_warnings is not None:
+        #     for k in glb_warnings.keys():
+        #         res =  self.check_rule(k, glb_warnings[k])
+        #         if res['check'] is True:
+        #             warning.append({'key' : k, 'criteria' : glb_warnings[k], 'curr' : res['curr']})
+        #         else:
+        #             failed_tests["warnings"].append({'key' : k, 'criteria' : glb_warnings[k], 'curr' : res['curr']})
+        # if tpl_success is not None:
+        #     for k in tpl_success.keys():
+        #         res = self.check_rule(k, tpl_success[k])
+        #         if res['check'] is True:
+        #             success.append({'key' : k, 'criteria' : tpl_success[k], 'curr' : res['curr']})
+        #         else:
+        #              failed_tests["success"].append({'key' : k, 'criteria' : tpl_success[k], 'curr' : res['curr']})
+        # if tpl_warnings is not None:
+        #     for k in tpl_warnings.keys():
+        #         res = self.check_rule(k, tpl_warnings[k])
+        #         if res['check'] is True:
+        #             warning.append({'key' : k, 'criteria' : tpl_warnings[k], 'curr' : res['curr']})
+        #         else:
+        #             failed_tests["warnings"].append({'key' : k, 'criteria' : tpl_warnings[k], 'curr' : res['curr']})
 
         x = { 'success' : success,
-                 'warnings' : warning }
+              'warnings' : warning,
+              'failed_tests' : failed_tests,
+              'deny' : deny}
         return x
     def check_rule(self, label, check_rule):
         """ check met/failed success/warning criterias
@@ -122,13 +181,13 @@ class NxRating():
             scope = items[0]
             score = items[1]
             x = self.get(scope, score)
-            return {'curr' : x, 'check' : check( int(self.get(scope, score)), beat)}
+            return {'curr' : x, 'check' : check( int(self.get(scope, score)), int(beat))}
         elif len(items) == 4:
             scope = items[0]
             scope_small = items[1]
             score = items[2]
             x = self.get(scope, score, scope_small=scope_small)
-            return {'curr' : x, 'check' : check(self.get(scope, score, scope_small=scope_small), beat)}
+            return {'curr' : x, 'check' : check(int(self.get(scope, score, scope_small=scope_small)), int(beat))}
         else:
             print "cannot understand rule ("+label+"):",
             pprint.pprint(check_rule)
@@ -214,7 +273,7 @@ class NxTranslate():
         for x in scores['success']:
             print "# success : "+self.grn.format(str(x['key'])+" is "+str(x['curr']))
         for x in scores['warnings']:
-            print "# success : "+self.grn.format(str(x['key'])+" is "+str(x['curr']))
+            print "# warnings : "+self.grn.format(str(x['key'])+" is "+str(x['curr']))
 
         pass
     def expand_tpl_path(self, template):
@@ -255,6 +314,8 @@ class NxTranslate():
             template['_success'] = self.normalize_checks(template['_success'])
         if '_warnings' in template.keys():
             template['_warnings'] = self.normalize_checks(template['_warnings'])
+        if '_deny' in template.keys():
+            template['_deny'] = self.normalize_checks(template['_deny'])
         #return self.tpl_append_gfilter(template)
         return template
     def load_wl_file(self, wlf):
