@@ -327,9 +327,12 @@ class NxInjector():
 
 
 class ESInject(NxInjector):
-    def __init__(self, es, cfg):
+    def __init__(self, es, cfg, auto_commit_limit=400):
+        #
+#        self.nlist = []
+#        self.auto_commit = auto_commit_limit
 #        super(ESInject, self).__init__(value=20)
-        NxInjector.__init__(self)
+        NxInjector.__init__(self, auto_commit_limit)
         self.es = es
         self.cfg = cfg
         # self.host = host
