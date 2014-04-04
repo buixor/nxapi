@@ -218,7 +218,7 @@ if options.files_in is not None or options.fifo_in is not None or options.stdin 
     else:
         injector = ESInject(es, cfg.cfg)
     parser = NxParser()
-    parser.out_date_format = "%Y-%m-%dT%H:%M:%SZ" #ES-friendly
+    parser.out_date_format = "%Y-%m-%dT%H:%M:%S+02" #ES-friendly
     try:
         geoloc = NxGeoLoc(cfg.cfg)
     except:
