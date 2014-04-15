@@ -255,7 +255,7 @@ class NxTranslate():
                             results = scoring.check_rule_score(template)
                             if len(results['success']) > len(results['warnings']) or self.cfg["naxsi"]["strict"] == "false":
                                 self.fancy_display(genrule, results, template)
-                                print self.grn.format(self.tpl2wl(genrule['rule']), template).encode('utf-8')
+                                print self.grn.format(self.tpl2wl(genrule['rule']), template).encode('utf-8', errors='replace')
                                 
     def fancy_display(self, full_wl, scores, template=None):
         if template is not None and '_msg' in template.keys():
@@ -268,7 +268,8 @@ class NxTranslate():
                 if not x in full_wl.keys():
                     continue
                 for y in full_wl[x]:
-                    print "#"+x+" : "+unicode(y).encode("utf-8") #str(y)
+                    print "#"+x+" : "+unicode(y).encode("utf-8", errors='replace')
+
         pprint.pprint(scores)
         for x in scores['success']:
             print "# success : "+self.grn.format(str(x['key'])+" is "+str(x['curr']))
@@ -557,12 +558,8 @@ class NxTranslate():
         esq = self.tpl2esq(rule)
         esq['facets'] =  { "facet_results" : {"terms": { "field": key, "size" : 50000} }}
         res = self.search(esq)
-        if key == "var_name":
-            print "VAR_NAME"
-            pprint.pprint(res['facets']['facet_results']['terms'])
         for x in res['facets']['facet_results']['terms']:
             if x['term'] not in uniques:
-                print "TERM("+key+") : "+x['term']
                 uniques.append(x['term'])
         return { 'list' : uniques, 'total' :  len(uniques) }
     def index(self, body, eid):
