@@ -81,7 +81,7 @@ class NxRating():
                                 tpl_warnings=tpl.get('_warnings', None), 
                                 tpl_deny=tpl.get('_deny', None))
     def check_score(self, tpl_success=None, tpl_warnings=None, tpl_deny=None):
-        debug = True
+        debug = False
         success = []
         warning = []
         deny = False
@@ -441,7 +441,8 @@ class NxTranslate():
         return [True, filters]
     def parse_mz(self, mz_str, esq):
         """ parses a match zone from BasicRule, and updates
-        es query accordingly """
+        es query accordingly. Removes ^/$ chars from regexp """
+        forbidden_rx_chars = "^$"
         kw = mz_str.split("|")
         tpl = esq['query']['bool']['must']
         uri = ""
@@ -473,11 +474,12 @@ class NxTranslate():
                     if t_name is True:
                         zone += "|NAME"
                     tpl.append({"text" : { "zone" : zone}})
-                    tpl.append({"regexp" : { "var_name" : var_name}})
+                    #.translate(string.maketrans(chars, newchars))
+                    tpl.append({"regexp" : { "var_name" : var_name.translate(None, forbidden_rx_chars)}})
                 # URL_X:<regexp>
                 elif zone == "URL_X":
                     zone = zone[:-2]
-                    tpl.append({"regexp" : { "uri" : var_name}})
+                    tpl.append({"regexp" : { "uri" : var_name.translate(None, forbidden_rx_chars)}})
                 # URL:<string>
                 elif zone == "URL":
                     tpl.append({"text" : { "uri" : var_name }})
@@ -492,6 +494,8 @@ class NxTranslate():
                 if t_name is True:
                     zone += "|NAME"
                 tpl.append({"text" : {"zone" : zone}})
+        print "RULE :"
+        pprint.pprint(esq)
         return [True, esq]
     def tpl2wl(self, rule, template=None):
         """ transforms a rule/esq
@@ -553,8 +557,12 @@ class NxTranslate():
         esq = self.tpl2esq(rule)
         esq['facets'] =  { "facet_results" : {"terms": { "field": key, "size" : 50000} }}
         res = self.search(esq)
+        if key == "var_name":
+            print "VAR_NAME"
+            pprint.pprint(res['facets']['facet_results']['terms'])
         for x in res['facets']['facet_results']['terms']:
             if x['term'] not in uniques:
+                print "TERM("+key+") : "+x['term']
                 uniques.append(x['term'])
         return { 'list' : uniques, 'total' :  len(uniques) }
     def index(self, body, eid):
